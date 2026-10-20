@@ -21,32 +21,26 @@ int option_c(char** files, char* archive, int nb_files) {
 }
 
 /*
-FUNCTIONS
+FILLING ARCHIVE
 */
 
-int fill_archive_end(int archive_open) {
-    char buffer_end[1024] = {'\0'};
-    if(write_all(archive_open, buffer_end, 1024)) {
+int fill_header(char* header, struct stat info, char* file) {
+    if (name(file, header) || 
+        mode(info.st_mode & 0777, header) || 
+        uid(info.st_uid, header) || 
+        gid(info.st_gid, header) || 
+        size((S_ISDIR(info.st_mode) || S_ISLNK(info.st_mode)? 0 : info.st_size), header) || 
+        mtime(info.st_mtime, header) || 
+        typeflag(info.st_mode, header) || 
+        (S_ISLNK(info.st_mode)? linkname(file, header) : 0) || 
+        magic(header) || 
+        version(header) || 
+        uname(info.st_uid, header) || 
+        gname(info.st_gid, header) || 
+        devmajor(0, header) || 
+        devminor(0, header) || 
+        chksum(header)) {
         return 1;
-    }
-    return 0;
-}
-
-int padding(char* file, int archive_open) {
-    struct stat info;
-    if(lstat(file, &info) == -1) {
-        erreur_stat(file);
-        return 1;
-    }
-    int size_end = 0;
-    if(S_ISREG(info.st_mode)) {
-        size_end = (512 - (info.st_size % 512)) % 512;
-    }
-    if (size_end != 0) {
-        char buffer[511] = {'\0'};
-        if (write_all(archive_open, buffer, size_end)) {
-            return 1;
-        }
     }
     return 0;
 }
@@ -99,6 +93,37 @@ int fill_archive(char* file, int archive_open) {
     return 0;
 }
 
+int padding(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        erreur_stat(file);
+        return 1;
+    }
+    int size_end = 0;
+    if(S_ISREG(info.st_mode)) {
+        size_end = (512 - (info.st_size % 512)) % 512;
+    }
+    if (size_end != 0) {
+        char buffer[511] = {'\0'};
+        if (write_all(archive_open, buffer, size_end)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int fill_archive_end(int archive_open) {
+    char buffer_end[1024] = {'\0'};
+    if(write_all(archive_open, buffer_end, 1024)) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+FUNCTIONS
+*/
+
 int write_all(int descriptor, char* buffer, size_t size) {
     size_t total = 0;
     while(total < size) {
@@ -111,27 +136,6 @@ int write_all(int descriptor, char* buffer, size_t size) {
     return 0;
 }
 
-int fill_header(char* header, struct stat info, char* file) {
-    if (name(file, header) || 
-        mode(info.st_mode & 0777, header) || 
-        uid(info.st_uid, header) || 
-        gid(info.st_gid, header) || 
-        size((S_ISDIR(info.st_mode) || S_ISLNK(info.st_mode)? 0 : info.st_size), header) || 
-        mtime(info.st_mtime, header) || 
-        typeflag(info.st_mode, header) || 
-        (S_ISLNK(info.st_mode)? linkname(file, header) : 0) || 
-        magic(header) || 
-        version(header) || 
-        uname(info.st_uid, header) || 
-        gname(info.st_gid, header) || 
-        devmajor(0, header) || 
-        devminor(0, header) || 
-        chksum(header)) {
-        return 1;
-    }
-    return 0;
-}
-
 int write_octal_field(unsigned long info, int size, int index_min, int index_max, char* header, char* error) {
     char* conversion = malloc(sizeof(char) * size);
     if(conversion == NULL) {
@@ -140,7 +144,6 @@ int write_octal_field(unsigned long info, int size, int index_min, int index_max
     for(int fill = 0; fill < size; fill++) {
         conversion[fill] = '0';
     }
-
     int index_info = 0;
     while(info != 0){
         if (index_info >= size) {
@@ -178,7 +181,7 @@ int write_u_g_name(int index_header, char* name, char* header, char* error) {
 }
 
 /*
-HEADER
+CONSTRUCT HEADER
 */
 
 int name(char* file, char* header) {
