@@ -31,7 +31,6 @@ int main(int argc, char** argv) {
     if(verification_option_exist(option) || verification_options_combined(option, option_f)) {
         return 1;
     }
-    if ()
 
     char** files = malloc(sizeof(char*) * nb_files);
     if (files == NULL) {
@@ -46,7 +45,10 @@ int main(int argc, char** argv) {
     int archive_open = 1;
     if (option_f == 1) {
         if (option == 'c') {
-            
+            if(option_c(files, argv[archive_index], nb_files)) {
+                free(files);
+                return 1;
+            }
         } else if (option == 'r') {
             
         } else if (option == 't') {

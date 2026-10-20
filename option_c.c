@@ -1,71 +1,114 @@
-int option_c() {
-    int archive_open = open(argv[archive_index], O_CREAT | O_TRUNC | O_WRONLY, 0644);
+int option_c(char** files, char* archive, int nb_files) {
+    int archive_open = open(archive, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (archive_open == -1) {
-        erreur_opening(argv[archive_index]);
-        free(files);
+        erreur_opening(archive);
         return 1;
     }
-
     for(int i = 0; i < nb_files; i++) {
-        struct stat info;
-        if(lstat(files[i], &info) == -1) {
-            erreur_stat(files[i]);
-            return close_and_free(archive_open, files);
+        if( fill_archive_header(files[i], archive_open) ||
+            fill_archive(files[i], archive_open) || 
+            padding(files[i], archive_open)) {
+            close(archive_open);
+            return 1;
         }
-        int file_open = open(files[i], O_RDONLY);
-        if (file_open == -1) {
-            erreur_opening(files[i]);
-            return close_and_free(archive_open, files);
-        }
-
-        char header[512] = {'\0'};
-        if(fill_header(header, info, files[i])) {
-            return close_and_free(archive_open, files);
-        }
-        if (write(archive_open, header, 512) != 512 ) {
-            text_error("my_tar: write error\n");
-            return close_and_free(archive_open, files);
-        }
-
-
-
-        char buffer[4096];
-        ssize_t size_file = read(file_open, buffer, 4096);
-        if(size_file == -1) {
-            text_error(/*error*/);
-            return double_close_and_free(archive_open, file_open, files);
-        }
-        while(size_file > 0) {
-            int verif += write(archive_open, buffer, size_file);
-            if(verif == -1) {
-                text_error("my_tar: write error\n");
-                return close_and_free(archive_open, files);
-            }
-            while(verif != size_file) {
-                verif = write(archive_open, buffer, size_file - verif);
-            }
-            size_file = read(file_open, buffer, 4096);
-        }
-        
-        
-
-
-        close(file_open);
     }
-    
+    if(fill_archive_end(archive_open)) {
+        close(archive_open);
+        return 1;
+    }
     close(archive_open);
     return 0;
 }
 
-int verificaton_write(int sortie, int entree, size) {
-    int verif += write(archive_open, buffer, size_file);
-    if(verif == -1) {
+/*
+FUNCTIONS
+*/
+
+int fill_archive_end(int archive_open) {
+    char buffer_end[1024] = {'\0'};
+    if(write_all(archive_open, buffer_end, 1024)) {
+        return 1;
+    }
+    return 0;
+}
+
+int padding(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        erreur_stat(file);
+        return 1;
+    }
+    int size_end = 0;
+    if(S_ISREG(info.st_mode)) {
+        size_end = (512 - (info.st_size % 512)) % 512;
+    }
+    if (size_end != 0) {
+        char buffer[511] = {'\0'};
+        if (write_all(archive_open, buffer, size_end)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int fill_archive_header(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        erreur_stat(file);
+        return 1;
+    }
+    char header[512] = {'\0'};
+    if(fill_header(header, info, file)) {
+        return 1;
+    }
+    if (write_all(archive_open, header, 512)) {
         text_error("my_tar: write error\n");
-        return close_and_free(archive_open, files);
+        return 1;
     }
-    while(verif != size_file) {
-        verif = write(archive_open, buffer, size_file - verif);
+    return 0;
+}
+
+int fill_archive(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        erreur_stat(file);
+        return 1;
     }
+    if(S_ISREG(info.st_mode)) {
+        int file_open = open(file, O_RDONLY);
+        if (file_open == -1) {
+            erreur_opening(file);
+            return 1;
+        }
+        char buffer[4096];
+        ssize_t size_file;
+        while((size_file = read(file_open, buffer, 4096)) > 0) {
+            if (write_all(archive_open, buffer, size_file)) {
+                text_error("my tar: write error\n");
+                close(file_open);
+                return 1;
+            }
+        }
+        if(size_file == -1) {
+            text_error("my tar: read error\n");
+            close(file_open);
+            return 1;
+        }
+        close(file_open);
+    }
+    return 0;
+}
+
+int write_all(int descriptor, char* buffer, size_t size) {
+    size_t total = 0;
+    while(total < size) {
+        ssize_t written = write(descriptor, buffer + total, size - total);
+        if (written <= 0) {
+            return 1;
+        }
+        total += written;
+    }
+    return 0;
 }
 
 int fill_header(char* header, struct stat info, char* file) {
@@ -88,6 +131,7 @@ int fill_header(char* header, struct stat info, char* file) {
     }
     return 0;
 }
+
 int write_octal_field(unsigned long info, int size, int index_min, int index_max, char* header, char* error) {
     char* conversion = malloc(sizeof(char) * size);
     if(conversion == NULL) {
@@ -132,18 +176,10 @@ int write_u_g_name(int index_header, char* name, char* header, char* error) {
     }
     return 0;
 }
-int close_and_free(int archive_open, char** files) {
-    close(archive_open);
-    free(files);
-    return 1;
-}
-int double_close_and_free(int archive_open, int file_open, char** files) {
-    close(archive_open);
-    close(file_open);
-    free(files);
-    return 1;
-}
 
+/*
+HEADER
+*/
 
 int name(char* file, char* header) {
     int size = count_string(file);
@@ -256,7 +292,7 @@ int devmajor(unsigned long devmajor, char* header) {
     return write_octal_field(devmajor, 7, 329, 336, header, "my_tar: Device major number too large\n");
 }
 int devminor(unsigned long devminor, char* header) {
-    return write_octal_field(devminor, 7, 337, 344, header, "my_tar: Device major number too large\n");
+    return write_octal_field(devminor, 7, 337, 344, header, "my_tar: Device minor number too large\n");
 }
 void prefix(char* file, int index_split, char* header) {
     int index_header = 345;
