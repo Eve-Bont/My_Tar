@@ -13,7 +13,7 @@ int verification_options(int argc, char* argument, char* option, int* option_f, 
     for (int j = 1; argument[j] != '\0'; j++) {
         if (argument[j] == 'f') {
             if (*option_f == 1 || *i + 1 >= argc || argument[j+1] != '\0') {
-                return erreur_option();
+                return error_option();
             }
             *option_f = 1;
             *archive_index = *i + 1;
@@ -21,12 +21,12 @@ int verification_options(int argc, char* argument, char* option, int* option_f, 
 
         } else if (argument[j] == 'c' || argument[j] == 'r' || argument[j] == 't' || argument[j] == 'u' || argument[j] == 'x') {
             if (*option != '\0') {
-                return erreur_option();
+                return error_option();
             }
             *option = argument[j];
 
         } else {
-            return erreur_option();
+            return error_option();
         }
     }
     return 0;
@@ -35,7 +35,7 @@ int verification_options(int argc, char* argument, char* option, int* option_f, 
 int verification_file(char* argument, int* nb_files) {
     struct stat info;
     if (stat(argument, &info) == -1) {
-        return erreur_stat(argument);
+        return error_stat(argument);
     }
     (*nb_files)++;
     return 0;

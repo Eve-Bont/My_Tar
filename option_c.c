@@ -1,7 +1,7 @@
 int option_c(char** files, char* archive, int nb_files) {
     int archive_open = open(archive, O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (archive_open == -1) {
-        erreur_opening(archive);
+        error_opening(archive);
         return 1;
     }
     for(int i = 0; i < nb_files; i++) {
@@ -48,7 +48,7 @@ int fill_header(char* header, struct stat info, char* file) {
 int fill_archive_header(char* file, int archive_open) {
     struct stat info;
     if(lstat(file, &info) == -1) {
-        erreur_stat(file);
+        error_stat(file);
         return 1;
     }
     char header[512] = {'\0'};
@@ -65,13 +65,13 @@ int fill_archive_header(char* file, int archive_open) {
 int fill_archive(char* file, int archive_open) {
     struct stat info;
     if(lstat(file, &info) == -1) {
-        erreur_stat(file);
+        error_stat(file);
         return 1;
     }
     if(S_ISREG(info.st_mode)) {
         int file_open = open(file, O_RDONLY);
         if (file_open == -1) {
-            erreur_opening(file);
+            error_opening(file);
             return 1;
         }
         char buffer[4096];
@@ -96,7 +96,7 @@ int fill_archive(char* file, int archive_open) {
 int padding(char* file, int archive_open) {
     struct stat info;
     if(lstat(file, &info) == -1) {
-        erreur_stat(file);
+        error_stat(file);
         return 1;
     }
     int size_end = 0;

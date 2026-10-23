@@ -1,15 +1,15 @@
-int erreur_option(void) {
+int error_option(void) {
     write(2, "my_tar: invalid options\n", count_string("my_tar: invalid options\n"));
     return 1;
 }
 
-void erreur_stat(char* file) {
+void error_stat(char* file) {
     write(2, "my_tar: ", count_string("my_tar: "));
     write(2, file, count_string(file));
     write(2, ": Cannot stat: No such file or directory\n", count_string(": Cannot stat: No such file or directory\n"));
 }
 
-void erreur_opening(char* file) {
+void error_opening(char* file) {
     write(2, "my_tar: Cannot open ", count_string("my_tar: Cannot open "));
     write(2, file, count_string(file));
     write(2, "\n", 1);

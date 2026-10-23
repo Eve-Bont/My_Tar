@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
 
     char** files = malloc(sizeof(char*) * nb_files);
     if (files == NULL) {
-        write(2, "erreur malloc\n", 14);
+        text_error("erreur malloc\n");
         return 1;
     }
     if (fill_tabl_files(files, argv, argc, archive_index) != nb_files) {
