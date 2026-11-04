@@ -32,9 +32,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    char** files = malloc(sizeof(char*) * nb_files);
+    char** files = malloc(sizeof(char*) * (nb_files > 0 ? nb_files : 1));
     if (files == NULL) {
-        text_error("erreur malloc\n");
+        text_error("my_tar: Memory exhausted\n");
         return 1;
     }
     if (fill_tabl_files(files, argv, argc, archive_index) != nb_files) {

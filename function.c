@@ -35,7 +35,8 @@ int verification_options(int argc, char* argument, char* option, int* option_f, 
 int verification_file(char* argument, int* nb_files) {
     struct stat info;
     if (stat(argument, &info) == -1) {
-        return error_stat(argument);
+        error_stat(argument);
+        return 1;
     }
     (*nb_files)++;
     return 0;
