@@ -245,15 +245,15 @@ int write_all(int descriptor, char* buffer, size_t size) {
     return 0;
 }
 
-int get_file_size(char* header, unsigned long* file_size) {
-    *file_size = 0;
-    for (int i = 124; i < 135; i++) {
+int get_file_info(char* header, unsigned long* info, int index_begin, int index_end) {
+    *info = 0;
+    for (int i = index_begin; i < index_end; i++) {
         if (header[i] < '0' || header[i] > '7') {
             return 0;
         }
-        *file_size = *file_size * 8 + (header[i] - '0');
+        *info = *info * 8 + (header[i] - '0');
     }
-    if (header[135] != '\0') {
+    if (header[index_end] != '\0') {
         return 0;
     }
     return 1;

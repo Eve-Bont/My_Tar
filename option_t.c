@@ -48,7 +48,7 @@ int display_name(char* header) {
 
 int jump_file(int archive_open, char* header) {
     unsigned long size_file = 0;
-    if(!get_file_size(header, &size_file)) {
+    if(!get_file_info(header, &size_file, 124, 135)) {
         return 1;
     }
     unsigned long padding = (512 - (size_file % 512)) % 512;
