@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    int archive_open = 1;
+    
     if (option_f == 1) {
         if (option == 'c') {
             if(option_c(files, argv[archive_index], nb_files)) {

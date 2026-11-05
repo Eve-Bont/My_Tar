@@ -1,13 +1,7 @@
 #include "function.h"
-
-int count_string(char* name) {
-    int i = 0, count = 0;
-    while (name[i] != '\0') {
-        count++;
-        i++;
-    }
-    return count;
-}
+/*
+OPTIONS VALIDATION
+*/
 
 int verification_options(int argc, char* argument, char* option, int* option_f, int* archive_index, int* i) {
     for (int j = 1; argument[j] != '\0'; j++) {
@@ -79,4 +73,188 @@ int fill_tabl_files(char** files, char** argv, int argc, int archive_index) {
         }
     }
     return index;
+}
+
+/*
+ARCHIVE VALIDATION
+*/
+
+int validate_archive_format(int archive_open, struct stat* info) {
+    if (fstat(archive_open, &info) == -1) {
+        return 1;
+    }
+    if (!S_ISREG(info->st_mode) || info->st_size < 1024 || info->st_size % 512 != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int validate_archive(int archive_open, struct stat info) {
+    off_t position = 0;
+    char header[512];
+
+    while (position < info.st_size) {
+        if (read_all(archive_open, header, 512)) {
+            return 1;
+        }
+        position += 512;
+        if (verify_bloc_0(header)) {
+            return verify_archive_end(archive_open, position, info);
+        }
+        if (verify_archive_file(archive_open, header, &position, info)) {
+            return 1;
+        }
+    }
+    return 1;
+}
+
+/*
+FILLING ARCHIVE
+*/
+
+int fill_header(char* header, struct stat info, char* file) {
+    if (name(file, header) || 
+        mode(info.st_mode & 0777, header) || 
+        uid(info.st_uid, header) || 
+        gid(info.st_gid, header) || 
+        size((S_ISDIR(info.st_mode) || S_ISLNK(info.st_mode)? 0 : info.st_size), header) || 
+        mtime(info.st_mtime, header) || 
+        typeflag(info.st_mode, header) || 
+        (S_ISLNK(info.st_mode)? linkname(file, header) : 0) || 
+        magic(header) || 
+        version(header) || 
+        uname(info.st_uid, header) || 
+        gname(info.st_gid, header) || 
+        devmajor(0, header) || 
+        devminor(0, header) || 
+        chksum(header)) {
+        return 1;
+    }
+    return 0;
+}
+
+int fill_archive_header(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        error_stat(file);
+        return 1;
+    }
+    char header[512] = {'\0'};
+    if(fill_header(header, info, file)) {
+        return 1;
+    }
+    if (write_all(archive_open, header, 512)) {
+        text_error("my_tar: write error\n");
+        return 1;
+    }
+    return 0;
+}
+
+int fill_archive(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        error_stat(file);
+        return 1;
+    }
+    if(S_ISREG(info.st_mode)) {
+        int file_open = open(file, O_RDONLY);
+        if (file_open == -1) {
+            error_opening(file);
+            return 1;
+        }
+        char buffer[4096];
+        ssize_t size_file;
+        while((size_file = read(file_open, buffer, 4096)) > 0) {
+            if (write_all(archive_open, buffer, size_file)) {
+                text_error("my tar: write error\n");
+                close(file_open);
+                return 1;
+            }
+        }
+        if(size_file == -1) {
+            text_error("my tar: read error\n");
+            close(file_open);
+            return 1;
+        }
+        close(file_open);
+    }
+    return 0;
+}
+
+int padding(char* file, int archive_open) {
+    struct stat info;
+    if(lstat(file, &info) == -1) {
+        error_stat(file);
+        return 1;
+    }
+    int size_end = 0;
+    if(S_ISREG(info.st_mode)) {
+        size_end = (512 - (info.st_size % 512)) % 512;
+    }
+    if (size_end != 0) {
+        char buffer[511] = {'\0'};
+        if (write_all(archive_open, buffer, size_end)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int fill_archive_end(int archive_open) {
+    char buffer_end[1024] = {'\0'};
+    if(write_all(archive_open, buffer_end, 1024)) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+OTHERS
+*/
+
+int count_string(char* name) {
+    int i = 0, count = 0;
+    while (name[i] != '\0') {
+        count++;
+        i++;
+    }
+    return count;
+}
+
+int read_all(int archive_open, char* buffer, size_t size) {
+    size_t total = 0;
+    while (total < size) {
+        ssize_t reading = read(archive_open, buffer + total, size - total);
+        if (reading <= 0) {
+            return 1;
+        }
+        total += reading;
+    }
+    return 0;
+}
+
+int write_all(int descriptor, char* buffer, size_t size) {
+    size_t total = 0;
+    while(total < size) {
+        ssize_t written = write(descriptor, buffer + total, size - total);
+        if (written <= 0) {
+            return 1;
+        }
+        total += written;
+    }
+    return 0;
+}
+
+int get_file_size(char* header, unsigned long* file_size) {
+    *file_size = 0;
+    for (int i = 124; i < 135; i++) {
+        if (header[i] < '0' || header[i] > '7') {
+            return 0;
+        }
+        *file_size = *file_size * 8 + (header[i] - '0');
+    }
+    if (header[135] != '\0') {
+        return 0;
+    }
+    return 1;
 }

@@ -1,62 +1,34 @@
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-int option_r(char* archive, char** files, int count) {
+int option_r(char* archive, char** files, int nb_files) {
     int archive_open = open(archive, O_RDWR);
     struct stat info;
     if (archive_open == -1) {
         error_opening(archive);
         return 1;
     }
-    if (validate_archive_format(archive_open, &info) || validate_archive(archive_open, info) || lseek(archive_open, -1024, SEEK_END) == -1) {
+    if (validate_archive_format(archive_open, &info) || 
+        validate_archive(archive_open, info) ||
+        lseek(archive_open, -1024, SEEK_END) == -1) {
         close(archive_open);
         return text_error("my_tar: invalid archive\n");
     }
-
-
-
-    
+    for (int i = 0; i < nb_files; i++) {
+        if( fill_archive_header(files[i], archive_open) || 
+            fill_archive(files[i], archive_open) || 
+            padding(files[i], archive_open)) {
+            close(archive_open);
+            return 1;
+        }
+    }
+    if(fill_archive_end(archive_open)) {
+        close(archive_open);
+        return 1;
+    }
     close(archive_open);
     return 0;
 }
 
 /*
-ARCHIVE VALIDATION
-*/
-
-int validate_archive_format(int archive_open, struct stat* info) {
-    if (fstat(archive_open, &info) == -1) {
-        return 1;
-    }
-    if (!S_ISREG(info->st_mode) || info->st_size < 1024 || info->st_size % 512 != 0) {
-        return 1;
-    }
-    return 0;
-}
-
-int validate_archive(int archive_open, struct stat info) {
-    off_t position = 0;
-    char header[512];
-
-    while (position < info.st_size) {
-        if (read_all(archive_open, header, 512)) {
-            return 1;
-        }
-        position += 512;
-        if (verify_bloc_0(header)) {
-            return verify_archive_end(archive_open, position, info);
-        }
-        if (verify_archive_file(archive_open, header, &position, info)) {
-            return 1;
-        }
-    }
-    return 1;
-}
-
-/*
-VERIFY
+FUNCTIONS
 */
 
 int verify_bloc_0(char* bloc) {
@@ -121,34 +93,4 @@ int verify_checksum(char* header) {
         }
     }
     return restored == calculated;
-}
-
-int get_file_size(char* header, unsigned long* file_size) {
-    *file_size = 0;
-    for (int i = 124; i < 135; i++) {
-        if (header[i] < '0' || header[i] > '7') {
-            return 0;
-        }
-        *file_size = *file_size * 8 + (header[i] - '0');
-    }
-    if (header[135] != '\0') {
-        return 0;
-    }
-    return 1;
-}
-
-/*
-FUNCTIONS
-*/
-
-int read_all(int archive_open, char* buffer, size_t size) {
-    size_t total = 0;
-    while (total < size) {
-        ssize_t reading = read(archive_open, buffer + total, size - total);
-        if (reading <= 0) {
-            return 1;
-        }
-        total += reading;
-    }
-    return 0;
 }
